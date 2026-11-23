@@ -1,17 +1,42 @@
 import operator
 from typing import Annotated, Literal
 
+from instrumentation import tracer_provider
+
 from dotenv import load_dotenv
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_core.messages import AnyMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
+from langchain_core.tools import tool
 
 load_dotenv()
 
 search_tool = DuckDuckGoSearchRun()
-tools = [search_tool]
+@tool
+def calculate_trip_budget(
+    flight_cost: float,
+    nightly_hotel_cost: float,
+    nights: int,
+    daily_spending: float,
+    budget: float,
+) -> dict:
+    """Estimate total trip cost and whether it fits the user's budget."""
+    hotel_total = nightly_hotel_cost * nights
+    spending_total = daily_spending * (nights + 1)
+    total = flight_cost + hotel_total + spending_total
+
+    return {
+        "flight": flight_cost,
+        "hotel": hotel_total,
+        "daily_spending": spending_total,
+        "estimated_total": total,
+        "budget": budget,
+        "within_budget": total <= budget,
+        "remaining": budget - total,
+    }
+tools = [search_tool, calculate_trip_budget]
 tools_by_name = {tool.name: tool for tool in tools}
 
 model = ChatOpenAI(model="gpt-4o", temperature=0)
